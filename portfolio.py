@@ -6,7 +6,7 @@ import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-ts.set_token('1007fedb5e88ba3337c61ff742825ed30706b493087f2d18e2bd5cab')
+ts.set_token('b39331c7d64c76a09b3625a9412f687e20b8fceb8aa9315ffb822dfa')
 pro = ts.pro_api()
 
 #############################回测按钮########################################
@@ -49,6 +49,18 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
         elif idx=='000905.SH':
             indexlist=[i+'.SH' for i in ts.get_zz500s()['code'].tolist()]
         
+        stock=pd.DataFrame()
+        for i in benchmark['trade_date'].tolist():
+            stocklist = pro.daily_basic(ts_code='', trade_date=str(i),fields='ts_code,trade_date,turnover_rate,total_mv,pe,pb,ps,close')
+        #选取在股票池中的股票
+            stocklist = stocklist[stocklist.ts_code.isin(indexlist)]
+        #将因子标准化后再排序
+            stocklist[['turnover_rate','total_mv','pe','pb','ps']]=stocklist[['turnover_rate','total_mv','pe','pb','ps']].apply(lambda x:(x-x.mean()))
+            stock=pd.concat([stocklist,stock],axis=0)
+            
+        
+        '''
+        真的非常诡异……没看出来这段代码哪里不对但是就是跑不出来结果……
         #把回测区间的所有数据都抓取下来
         stock=pd.DataFrame()
         #这里一次抓所有股票的数据，可能比较耗时间？
@@ -59,10 +71,9 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
                 stocklist = pd.concat([i_stocklist,stocklist], axis = 0)
                 #stocklist = stocklist[stocklist.ts_code.isin(indexlist)]
         #将因子标准化后再排序,这里的均值和方差取得是不同股票的，标准化之后好像对排序结果没有什么影响？
-            stocklist[['turnover_rate','total_mv','pe','pb','ps']]=stocklist[['turnover_rate','total_mv','pe','pb','ps']].apply(lambda x:(x-x.mean())/x.std())
+            #stocklist[['turnover_rate','total_mv','pe','pb','ps']]=stocklist[['turnover_rate','total_mv','pe','pb','ps']].apply(lambda x:(x-x.mean())/x.std())
             stock=pd.concat([stocklist,stock],axis=0)
-            
-        
+        '''
         #这里想把benchmark在后面和performance merge起来，但是始终有找不出来的bugQAQ
         stock=stock.reset_index()
         benchmark=benchmark.reset_index()
