@@ -1,14 +1,4 @@
-
-# coding: utf-8
-
-# In[5]:
-
-
-
-# coding: utf-8
-
-# In[3]:
-
+##############################导入所需要的库#################################
 
 import tushare as ts
 import pandas as pd
@@ -16,14 +6,19 @@ import tkinter as tk
 from tkinter import ttk
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
-
-ts.set_token('b39331c7d64c76a09b3625a9412f687e20b8fceb8aa9315ffb822dfa')
+ts.set_token('1007fedb5e88ba3337c61ff742825ed30706b493087f2d18e2bd5cab')
 pro = ts.pro_api()
 
+#############################回测按钮########################################
 
 #给各个因子打分，这里写得不够完整
 def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
+    
+    #转换日期格式
     def params(year,month,day):
+        year = year[:-1]
+        month = month[:-1]
+        day = day[:-1]
         if int(month)<10:
             if int(day)<10:
                 start_date=year+'0'+month+'0'+day
@@ -56,16 +51,18 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
         
         #把回测区间的所有数据都抓取下来
         stock=pd.DataFrame()
+        #这里一次抓所有股票的数据，可能比较耗时间？
         for i in benchmark['trade_date'].tolist():
-            stocklist = pro.daily_basic(ts_code='', trade_date=str(i),fields='ts_code,trade_date,turnover_rate,total_mv,pe,pb,ps,close')
-        #选取在股票池中的股票
-            stocklist = stocklist[stocklist.ts_code.isin(indexlist)]
-        #将因子标准化后再排序
-            stocklist[['turnover_rate','total_mv','pe','pb','ps']]=stocklist[['turnover_rate','total_mv','pe','pb','ps']].apply(lambda x:(x-x.mean()))
+            stocklist = pd.DataFrame()
+            for i_index in indexlist:
+                i_stocklist = pro.daily_basic(ts_code=i_index, trade_date=str(i),fields='ts_code,trade_date,turnover_rate,total_mv,pe,pb,ps,close')
+                stocklist = pd.concat([i_stocklist,stocklist], axis = 0)
+                #stocklist = stocklist[stocklist.ts_code.isin(indexlist)]
+        #将因子标准化后再排序,这里的均值和方差取得是不同股票的，标准化之后好像对排序结果没有什么影响？
+            stocklist[['turnover_rate','total_mv','pe','pb','ps']]=stocklist[['turnover_rate','total_mv','pe','pb','ps']].apply(lambda x:(x-x.mean())/x.std())
             stock=pd.concat([stocklist,stock],axis=0)
             
         
-    
         #这里想把benchmark在后面和performance merge起来，但是始终有找不出来的bugQAQ
         stock=stock.reset_index()
         benchmark=benchmark.reset_index()
@@ -92,8 +89,8 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
     elif o3=='从大到小':
         stock[f3]=stock[['trade_date',f3]].groupby('trade_date').rank(ascending=False)
     
-    #总分：因为权重总是1所以w3似乎是多余的？
-    stock['score']=w1*stock[f1]+w2*stock[f2]+(1-w1-w2)*stock[f3]
+    #总分：因为权重总是1所以w3似乎是多余的？答：之前是让用户按照重要性分别打分，用户不用调整三个权重和为某个定值，所以这里因子权重按分数比例计算～
+    stock['score']=w1/(w1+w2+w3)*stock[f1]+w2/(w1+w2+w3)*stock[f2]+w3/(w1+w2+w3)*stock[f3]
     
     #打分前20（待确认）
     select_stock=stock[['ts_code','trade_date','close','score']].groupby('trade_date').apply(lambda x:x.nlargest(20,'score'))
@@ -101,9 +98,6 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
     #这里待改，不一定是等权重持有
     performance=select_stock[['trade_date','close']].groupby('trade_date').sum(axis=1)/20
     #pic=pd.merge(performance,benchmark,on='trade_date')
-    
-    
-    
     
     #画图，将调仓后的股票和指数进行对比；不过这里暂时只画了所持有的股票组合走势，没有画benchmark
     
@@ -119,6 +113,9 @@ def backtest(f1,f2,f3,o1,o2,o3,w1,w2,w3):
     
     #需要增加一些类似于夏普比率、最大回撤率之类的计算
 
+    
+###############################导入界面###########################################
+    
 root = tk.Tk()
 root.title('多因子选股')
 root.geometry('500x480+500+200')
@@ -219,18 +216,18 @@ def getday2():
 for i in range(2):
     year = ttk.Combobox(root, width = 6, textvariable = year_list[i])
     year.place(x = 80+200*i, y = 200+50)
-    #year['value'] = tuple(str(j)+'年' for j in range(2000, 2020))#时间待确定
-    year['value'] = tuple(str(j) for j in range(2000, 2020))
+    year['value'] = tuple(str(j)+'年' for j in range(2000, 2020))
+    #year['value'] = tuple(str(j) for j in range(2000, 2020))
     year.current(0)
 
     month = ttk.Combobox(root, width = 3, textvariable = month_list[i])
     month.place(x = 155+200*i, y = 200+50)
-    month['value'] = tuple(str(j) for j in list(range(1, 13)))
+    month['value'] = tuple(str(j)+'月' for j in list(range(1, 13)))
     month.current(0)
  
     day = ttk.Combobox(root, width = 3, textvariable = day_list[i])
     day.place(x = 210+200*i, y = 200+50)
-    day['value'] = tuple(str(j) for j in range(1, 32))
+    day['value'] = tuple(str(j)+'日' for j in range(1, 32))
     day.current(0)
 
 
@@ -246,7 +243,10 @@ freq.current(0)
 f={'换手率':'turnover_rate','市盈率PE':'pe','市净率PB':'pb','市销率PS':'ps','总市值':'total_mv'}
 
 
-backtest_button = tk.Button( root, text = '开始回测', width = 18, height = 2, command = lambda: backtest(f[factor01.get()],f[factor02.get()],f[factor03.get()],order01.get(),order02.get(),order03.get(),weight01.get(),weight02.get(),weight03.get()))# 函数写好了再设置command
+backtest_button = tk.Button( root, text = '开始回测', width = 18, height = 2, \
+                                 command = lambda: backtest(f[factor01.get()],f[factor02.get()],\
+                                    f[factor03.get()],order01.get(),order02.get(),order03.get(),\
+                                        weight01.get(),weight02.get(),weight03.get()))
 backtest_button.place(x = 170, y = 340)
 
 
@@ -256,9 +256,10 @@ report_button.place(x = 170, y = 400)
 
 root.mainloop()
 
+##################################界面输入变量汇总#####################################
 
 '''
-变量汇总:
+界面输入变量汇总:
 
 (1)股票池指数 【str类型】
 index0.get() 
